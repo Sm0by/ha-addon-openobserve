@@ -24,6 +24,9 @@ RUN chmod a+x \
         /etc/s6-overlay/s6-rc.d/openobserve/run \
         /etc/s6-overlay/s6-rc.d/openobserve/finish
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5080/healthz > /dev/null || exit 1
+
 LABEL \
     io.hass.name="OpenObserve" \
     io.hass.description="Observability backend for logs, metrics and traces via OpenTelemetry (OTLP)" \
