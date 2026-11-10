@@ -1,15 +1,11 @@
-# Home Assistant Add-ons
+# OpenObserve Home Assistant Add-on
 
-Add-on repository for Home Assistant.
+Home Assistant add-on that runs [OpenObserve](https://github.com/openobserve/openobserve), an observability backend for logs, metrics and traces via OpenTelemetry (OTLP).
 
-## Add-ons
-
-| Add-on | Description | Status |
-|---|---|---|
-| OpenObserve | Observability backend for logs, metrics and traces (OpenTelemetry/OTLP) | in development |
+Status: in development.
 
 ## Installation
 
 1. In Home Assistant open **Settings → Add-ons → Add-on Store**.
-2. Open the menu (⋮) → **Repositories** and add `https://github.com/Sm0by/ha-addons`.
-3. Install the add-on from the store.
+2. Open the menu (⋮) → **Repositories** and add `https://github.com/Sm0by/ha-addon-openobserve`.
+3. Install **OpenObserve** from the store.
