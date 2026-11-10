@@ -1,0 +1,56 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Start OpenObserve with the options from the app configuration
+# ==============================================================================
+
+if bashio::config.is_empty 'root_email' || bashio::config.is_empty 'root_password'; then
+    bashio::exit.nok "Set 'root_email' and 'root_password' in the configuration before starting the app."
+fi
+
+export ZO_ROOT_USER_EMAIL
+export ZO_ROOT_USER_PASSWORD
+ZO_ROOT_USER_EMAIL="$(bashio::config 'root_email')"
+ZO_ROOT_USER_PASSWORD="$(bashio::config 'root_password')"
+
+# Persistent storage of the app (survives restarts, updates and is part of backups)
+export ZO_DATA_DIR="/data/openobserve/"
+export ZO_HTTP_PORT=5080
+export ZO_GRPC_PORT=5081
+export ZO_LOCAL_MODE=true
+export ZO_LOCAL_MODE_STORAGE=disk
+
+export ZO_COMPACT_DATA_RETENTION_DAYS
+ZO_COMPACT_DATA_RETENTION_DAYS="$(bashio::config 'retention_days')"
+
+export RUST_LOG
+RUST_LOG="$(bashio::config 'log_level')"
+
+if bashio::config.true 'telemetry'; then
+    export ZO_TELEMETRY=true
+else
+    export ZO_TELEMETRY=false
+fi
+
+if bashio::config.has_value 'web_url'; then
+    export ZO_WEB_URL
+    ZO_WEB_URL="$(bashio::config 'web_url')"
+fi
+
+# Additional OpenObserve settings (ZO_* environment variables)
+for index in $(bashio::config 'env_vars|keys'); do
+    name="$(bashio::config "env_vars[${index}].name")"
+    value="$(bashio::config "env_vars[${index}].value")"
+    bashio::log.info "Setting ${name} from env_vars"
+    export "${name}=${value}"
+done
+
+mkdir -p "${ZO_DATA_DIR}"
+cd /data || bashio::exit.nok "Cannot change to /data"
+
+if [[ -d "${ZO_DATA_DIR}db" ]]; then
+    bashio::log.info "Existing data found. root_email and root_password only apply to a new installation."
+fi
+
+bashio::log.info "Starting OpenObserve..."
+exec /usr/local/bin/openobserve

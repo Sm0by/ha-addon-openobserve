@@ -1,0 +1,25 @@
+configuration:
+  root_email:
+    name: Administrator email
+    description: Email of the administrator. Only used on the first start.
+  root_password:
+    name: Administrator password
+    description: Password of the administrator. Only used on the first start.
+  retention_days:
+    name: Retention (days)
+    description: Data older than this number of days is deleted.
+  log_level:
+    name: Log level
+    description: How much detail OpenObserve writes to the log.
+  telemetry:
+    name: Telemetry
+    description: Send anonymous usage data to the OpenObserve developers.
+  web_url:
+    name: Web URL
+    description: URL of the web interface, used for links in alerts.
+  env_vars:
+    name: Additional settings
+    description: Further OpenObserve settings as ZO_* environment variables.
+network:
+  5080/tcp: Web interface, HTTP API and OTLP/HTTP
+  5081/tcp: OTLP/gRPC

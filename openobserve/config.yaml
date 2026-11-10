@@ -1,0 +1,35 @@
+name: OpenObserve
+version: "0.1.0"
+slug: openobserve
+description: Observability backend for logs, metrics and traces via OpenTelemetry (OTLP)
+url: https://github.com/Sm0by/ha-addon-openobserve
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: services
+boot: auto
+# Stop the app during backups so the SQLite metadata and WAL files are consistent
+backup: cold
+ports:
+  5080/tcp: 5080
+  5081/tcp: 5081
+webui: "http://[HOST]:[PORT:5080]/web/"
+watchdog: "http://[HOST]:[PORT:5080]/healthz"
+options:
+  root_email: ""
+  root_password: ""
+  retention_days: 30
+  log_level: info
+  telemetry: false
+  env_vars: []
+schema:
+  root_email: str
+  root_password: password
+  retention_days: int(3,3650)
+  log_level: list(error|warn|info|debug|trace)
+  telemetry: bool
+  web_url: url?
+  env_vars:
+    - name: match(^ZO_[A-Z0-9_]+$)
+      value: str

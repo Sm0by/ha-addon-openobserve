@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: App linter
+        uses: frenck/action-addon-linter@v2
+        with:
+          path: "./openobserve"
+      - name: ShellCheck
+        run: |
+          shellcheck --shell=bash \
+            openobserve/rootfs/etc/s6-overlay/s6-rc.d/openobserve/run \
+            openobserve/rootfs/etc/s6-overlay/s6-rc.d/openobserve/finish
+
+  build:
+    name: Build and smoke test (${{ matrix.arch }})
+    needs: lint
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read app version
+        id: version
+        run: echo "version=$(grep -oP '^version:\s*"\K[^"]+' openobserve/config.yaml)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./openobserve
+          push: false
+          load: true
+          tags: local/openobserve:test
+          build-args: |
+            BUILD_ARCH=${{ matrix.arch }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Smoke test OpenObserve binary
+        env:
+          EMAIL: ci@example.com
+          PASSWORD: Ci-Test-Password-1
+        run: |
+          docker run -d --name oo -p 5080:5080 \
+            --entrypoint /usr/local/bin/openobserve \
+            -e ZO_ROOT_USER_EMAIL="$EMAIL" \
+            -e ZO_ROOT_USER_PASSWORD="$PASSWORD" \
+            -e ZO_DATA_DIR=/tmp/openobserve/ \
+            -e ZO_TELEMETRY=false \
+            local/openobserve:test
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5080/healthz; then echo; break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:5080/healthz
+          echo
+          curl -fsS -u "$EMAIL:$PASSWORD" \
+            -H 'Content-Type: application/json' \
+            -d '[{"message":"ci smoke test","level":"info"}]' \
+            http://localhost:5080/api/default/ci/_json
+          echo
+
+      - name: OpenObserve log
+        if: always()
+        run: docker logs oo || true

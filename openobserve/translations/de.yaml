@@ -1,0 +1,25 @@
+configuration:
+  root_email:
+    name: Administrator-E-Mail
+    description: E-Mail des Administrators. Wird nur beim ersten Start verwendet.
+  root_password:
+    name: Administrator-Passwort
+    description: Passwort des Administrators. Wird nur beim ersten Start verwendet.
+  retention_days:
+    name: Aufbewahrung (Tage)
+    description: Daten, die älter als diese Anzahl Tage sind, werden gelöscht.
+  log_level:
+    name: Log-Level
+    description: Wie ausführlich OpenObserve ins Log schreibt.
+  telemetry:
+    name: Telemetrie
+    description: Anonyme Nutzungsdaten an die OpenObserve-Entwickler senden.
+  web_url:
+    name: Web-URL
+    description: URL der Weboberfläche, wird für Links in Alarmen verwendet.
+  env_vars:
+    name: Weitere Einstellungen
+    description: Weitere OpenObserve-Einstellungen als ZO_*-Umgebungsvariablen.
+network:
+  5080/tcp: Weboberfläche, HTTP-API und OTLP/HTTP
+  5081/tcp: OTLP/gRPC
