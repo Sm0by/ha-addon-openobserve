@@ -4,7 +4,7 @@ configuration:
     description: Email of the administrator. Only used on the first start.
   root_password:
     name: Administrator password
-    description: Password of the administrator. Only used on the first start.
+    description: Password of the administrator (8-128 characters, lower- and uppercase letter, digit, special character). Only used on the first start.
   retention_days:
     name: Retention (days)
     description: Data older than this number of days is deleted.

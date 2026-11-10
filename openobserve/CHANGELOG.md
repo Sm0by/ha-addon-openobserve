@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Check the password rules of OpenObserve before starting, with a clear error instead of a crash
+- Register the service under `user-bundles.d` (removes the s6-overlay deprecation warning)
+- Document the watchdog and the password rules
+
 ## 0.1.0
 
 - First version with OpenObserve v1.1.2 (amd64, aarch64)

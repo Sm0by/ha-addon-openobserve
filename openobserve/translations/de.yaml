@@ -4,7 +4,7 @@ configuration:
     description: E-Mail des Administrators. Wird nur beim ersten Start verwendet.
   root_password:
     name: Administrator-Passwort
-    description: Passwort des Administrators. Wird nur beim ersten Start verwendet.
+    description: Passwort des Administrators (8-128 Zeichen, Klein- und Großbuchstabe, Ziffer, Sonderzeichen). Wird nur beim ersten Start verwendet.
   retention_days:
     name: Aufbewahrung (Tage)
     description: Daten, die älter als diese Anzahl Tage sind, werden gelöscht.

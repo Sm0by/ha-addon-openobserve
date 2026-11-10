@@ -10,13 +10,14 @@ The app runs OpenObserve in single-node mode. All data is stored in the app's ow
 2. Install **OpenObserve**.
 3. Set `root_email` and `root_password` on the **Configuration** tab.
 4. Start the app and open the web interface (`http://<home-assistant>:5080/web/`).
+5. Optional: turn on **Watchdog** on the **Info** tab. Home Assistant then restarts the app when its health check (`/healthz`) fails.
 
 ## Configuration
 
 | Option | Description |
 |---|---|
 | `root_email` | Email of the administrator. Required. |
-| `root_password` | Password of the administrator. Required. |
+| `root_password` | Password of the administrator. Required. 8–128 characters with at least one lowercase letter, one uppercase letter, one digit and one special character, otherwise OpenObserve does not start. |
 | `retention_days` | Data older than this is deleted (3–3650 days, default 30). |
 | `log_level` | Log level of OpenObserve (`error`, `warn`, `info`, `debug`, `trace`). |
 | `telemetry` | Send anonymous usage data to the OpenObserve developers (default off). |

@@ -13,6 +13,15 @@ export ZO_ROOT_USER_PASSWORD
 ZO_ROOT_USER_EMAIL="$(bashio::config 'root_email')"
 ZO_ROOT_USER_PASSWORD="$(bashio::config 'root_password')"
 
+# OpenObserve refuses to start (panic) with a weak root password, so check it first
+if (( ${#ZO_ROOT_USER_PASSWORD} < 8 || ${#ZO_ROOT_USER_PASSWORD} > 128 )) \
+    || [[ ! "${ZO_ROOT_USER_PASSWORD}" =~ [a-z] ]] \
+    || [[ ! "${ZO_ROOT_USER_PASSWORD}" =~ [A-Z] ]] \
+    || [[ ! "${ZO_ROOT_USER_PASSWORD}" =~ [0-9] ]] \
+    || [[ ! "${ZO_ROOT_USER_PASSWORD}" =~ [^a-zA-Z0-9] ]]; then
+    bashio::exit.nok "'root_password' is too weak: it needs 8-128 characters with at least one lowercase letter, one uppercase letter, one digit and one special character."
+fi
+
 # Persistent storage of the app (survives restarts, updates and is part of backups)
 export ZO_DATA_DIR="/data/openobserve/"
 export ZO_HTTP_PORT=5080
@@ -48,9 +57,6 @@ done
 mkdir -p "${ZO_DATA_DIR}"
 cd /data || bashio::exit.nok "Cannot change to /data"
 
-if [[ -d "${ZO_DATA_DIR}db" ]]; then
-    bashio::log.info "Existing data found. root_email and root_password only apply to a new installation."
-fi
-
+bashio::log.info "root_email and root_password only create the administrator if it does not exist yet."
 bashio::log.info "Starting OpenObserve..."
 exec /usr/local/bin/openobserve
