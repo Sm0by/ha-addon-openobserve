@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Update OpenObserve to v1.2.0-rc2 (release candidate, to test the MCP endpoint)
+- Make a backup before updating: v1.2.0 migrates the database, going back to 0.1.1 needs the backup
+
 ## 0.1.1
 
 - Check the password rules of OpenObserve before starting, with a clear error instead of a crash

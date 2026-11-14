@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG BUILD_FROM=ghcr.io/home-assistant/base-debian:trixie
-ARG OPENOBSERVE_VERSION=v1.1.2
+ARG OPENOBSERVE_VERSION=v1.2.0-rc2
 
 # Official multi-arch image (distroless, no shell). Only the binary is taken from it.
 FROM public.ecr.aws/zinclabs/openobserve:${OPENOBSERVE_VERSION} AS openobserve

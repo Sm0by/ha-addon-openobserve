@@ -1,5 +1,5 @@
 name: OpenObserve
-version: "0.1.1"
+version: "0.1.2"
 slug: openobserve
 description: Observability backend for logs, metrics and traces via OpenTelemetry (OTLP)
 url: https://github.com/Sm0by/ha-addon-openobserve
