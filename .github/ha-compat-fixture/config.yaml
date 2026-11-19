@@ -1,0 +1,11 @@
+# Test config for the Home Assistant compatibility check, not a real app.
+# It uses deprecated fields on purpose; the check must report them.
+# The Supervisor ignores folders starting with a dot, so it never shows up in the store.
+name: Compatibility check fixture
+version: "0.0.0"
+slug: ha_compat_fixture
+description: Deliberately deprecated config for the self-test
+advanced: true
+arch:
+  - amd64
+  - armhf
