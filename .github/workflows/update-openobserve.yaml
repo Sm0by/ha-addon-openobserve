@@ -1,0 +1,138 @@
+name: Check for OpenObserve updates
+
+on:
+  schedule:
+    # Daily at 05:17 UTC
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      include_rc:
+        description: "Also offer release candidates (-rcN)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: update-openobserve
+  cancel-in-progress: false
+
+env:
+  DOCKERFILE: openobserve/Dockerfile
+  CONFIG: openobserve/config.yaml
+  CHANGELOG: openobserve/CHANGELOG.md
+  IMAGE: public.ecr.aws/zinclabs/openobserve
+  BRANCH: update/openobserve
+
+jobs:
+  check:
+    name: Check upstream release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Determine current and latest version
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCLUDE_RC: ${{ inputs.include_rc || 'false' }}
+        run: |
+          set -euo pipefail
+          current=$(grep -oP '^ARG OPENOBSERVE_VERSION=\K\S+' "$DOCKERFILE")
+          echo "Current: $current"
+
+          # Upstream does not mark release candidates as pre-releases,
+          # so they are recognized by the tag name.
+          if [ "$INCLUDE_RC" = "true" ]; then
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
+          else
+            pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          fi
+          tags=$(gh api "repos/openobserve/openobserve/releases?per_page=50" \
+            --jq '.[] | select(.draft | not) | .tag_name' | grep -E "$pattern" || true)
+
+          # Pick the highest version; "-rc" becomes "~rc" so that 1.2.0 > 1.2.0-rc2
+          latest="$current"
+          for tag in $tags; do
+            if dpkg --compare-versions "${tag//-/\~}" gt "${latest//-/\~}"; then
+              latest="$tag"
+            fi
+          done
+          echo "Latest: $latest"
+
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$latest" != "$current" ]; then
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check that the image exists for both architectures
+        if: steps.versions.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+          manifest=$(docker manifest inspect "$IMAGE:$TAG")
+          for arch in amd64 arm64; do
+            if ! echo "$manifest" | jq -e --arg a "$arch" \
+                '.manifests[]? | select(.platform.architecture == $a)' > /dev/null; then
+              echo "::warning::$IMAGE:$TAG has no $arch image yet, try again later"
+              exit 1
+            fi
+          done
+
+      - name: Update files
+        if: steps.versions.outputs.update == 'true'
+        id: bump
+        env:
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+          sed -i "s|^ARG OPENOBSERVE_VERSION=.*|ARG OPENOBSERVE_VERSION=$LATEST|" "$DOCKERFILE"
+
+          # Patch bump of the app version
+          app=$(grep -oP '^version:\s*"\K[^"]+' "$CONFIG")
+          IFS=. read -r major minor patch <<< "$app"
+          new="$major.$minor.$((patch + 1))"
+          sed -i "s|^version: \".*\"|version: \"$new\"|" "$CONFIG"
+
+          # New CHANGELOG entry below the heading
+          entry="## $new\n\n- Update OpenObserve from $CURRENT to $LATEST ([release notes](https://github.com/openobserve/openobserve/releases/tag/$LATEST))\n"
+          sed -i "0,/^## /s|^## |$entry\n## |" "$CHANGELOG"
+
+          echo "app_version=$new" >> "$GITHUB_OUTPUT"
+          git diff
+
+      - name: Create or update pull request
+        if: steps.versions.outputs.update == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ env.BRANCH }}
+          delete-branch: true
+          commit-message: "Update OpenObserve to ${{ steps.versions.outputs.latest }}"
+          title: "Update OpenObserve to ${{ steps.versions.outputs.latest }}"
+          labels: dependencies
+          body: |
+            New OpenObserve version found by the scheduled update check.
+
+            - OpenObserve: `${{ steps.versions.outputs.current }}` → `${{ steps.versions.outputs.latest }}`
+            - App version: `${{ steps.bump.outputs.app_version }}`
+            - Release notes: https://github.com/openobserve/openobserve/releases/tag/${{ steps.versions.outputs.latest }}
+
+            Before merging, check the release notes for breaking changes and database migrations,
+            and extend the CHANGELOG entry if needed.
+
+      # Pull requests created with GITHUB_TOKEN do not trigger the CI workflow,
+      # a manual dispatch does. Its checks appear on the PR's head commit.
+      - name: Start CI for the update branch
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yaml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
