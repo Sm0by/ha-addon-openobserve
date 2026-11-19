@@ -1,0 +1,226 @@
+name: Home Assistant compatibility
+
+on:
+  schedule:
+    # Daily at 05:43 UTC
+    - cron: "43 5 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/ha-compat.yaml"
+      - ".github/scripts/supervisor_check.py"
+      - ".github/ha-compat-fixture/**"
+      - "openobserve/config.yaml"
+      - "openobserve/translations/**"
+      - "repository.yaml"
+
+permissions:
+  contents: read
+
+env:
+  APP: openobserve
+  # Developer blog categories that concern apps
+  BLOG_CATEGORIES: "apps supervisor add-ons addons"
+  # Only blog posts younger than this become issues
+  BLOG_MAX_AGE_DAYS: "30"
+
+jobs:
+  schema:
+    name: Supervisor ${{ matrix.channel }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # dev = Supervisor main branch, the version after the next release
+        channel: [stable, beta, dev]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve Supervisor version
+        id: supervisor
+        env:
+          CHANNEL: ${{ matrix.channel }}
+        run: |
+          set -euo pipefail
+          version=$(curl -fsS "https://version.home-assistant.io/$CHANNEL.json" | jq -r .supervisor)
+          if [ "$CHANNEL" = "dev" ]; then ref=main; else ref="$version"; fi
+          echo "Supervisor $CHANNEL: $version (ref $ref)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          repository: home-assistant/supervisor
+          ref: ${{ steps.supervisor.outputs.ref }}
+          path: .supervisor
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: .supervisor/requirements.txt
+
+      - name: Install Supervisor requirements
+        run: pip install -r .supervisor/requirements.txt
+
+      # Guards against the check passing silently, e.g. after the Supervisor
+      # renamed its logger or schemas: a deprecated config must be reported.
+      - name: Self-test with a deprecated config
+        env:
+          PYTHONPATH: .supervisor
+        run: |
+          if python .github/scripts/supervisor_check.py \
+              --app .github/ha-compat-fixture \
+              --report "$RUNNER_TEMP/selftest.md" \
+              --label "Self-test"; then
+            echo "::error::The deprecated test config was not reported, the check is broken"
+            exit 1
+          fi
+          for expected in "advanced" "arch"; do
+            if ! grep -q "Warning.*$expected" "$RUNNER_TEMP/selftest.md"; then
+              echo "::error::Expected a warning about '$expected' in the self-test"
+              exit 1
+            fi
+          done
+
+      - name: Validate app with the Supervisor schemas
+        env:
+          PYTHONPATH: .supervisor
+          LABEL: "Supervisor ${{ matrix.channel }} (${{ steps.supervisor.outputs.version }})"
+        run: |
+          python .github/scripts/supervisor_check.py \
+            --app "$APP" \
+            --report "report-${{ matrix.channel }}.md" \
+            --label "$LABEL"
+
+      - name: Job summary
+        if: always()
+        run: cat "report-${{ matrix.channel }}.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: report-${{ matrix.channel }}
+          path: report-${{ matrix.channel }}.md
+          if-no-files-found: ignore
+
+  report:
+    name: Report schema findings
+    needs: schema
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: report-*
+          path: reports
+          merge-multiple: true
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.schema.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="Home Assistant Supervisor reports problems with the app"
+          gh label create ha-compat --color D93F0B \
+            --description "Home Assistant compatibility" --force
+
+          number=$(gh issue list --label ha-compat --state open --limit 100 \
+            --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)
+
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --reason completed \
+                --comment "All Supervisor channels validate the app without problems again: $RUN_URL"
+            fi
+            exit 0
+          fi
+
+          {
+            echo "The scheduled check validated the app with the schemas of the Home Assistant Supervisor."
+            echo "Errors and deprecation warnings in the dev or beta channel need to be fixed before the next release."
+            echo
+            echo "Last run: $RUN_URL"
+            echo
+            for channel in stable beta dev; do
+              file="reports/report-$channel.md"
+              if [ -f "$file" ]; then
+                cat "$file"
+              else
+                printf '### Supervisor %s\n\nThe check could not run, see the workflow log.\n' "$channel"
+              fi
+              echo
+            done
+          } > body.md
+
+          if [ -z "$number" ]; then
+            gh issue create --title "$title" --label ha-compat --body-file body.md
+          else
+            # Only touch the issue when the findings changed
+            old=$(gh issue view "$number" --json body --jq .body | grep -v '^Last run: ' || true)
+            new=$(grep -v '^Last run: ' body.md || true)
+            if [ "$old" != "$new" ]; then
+              gh issue edit "$number" --body-file body.md
+              gh issue comment "$number" --body "The findings changed: $RUN_URL"
+            fi
+          fi
+
+  blog:
+    name: Developer blog announcements
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Read announcements about apps
+        run: |
+          set -euo pipefail
+          curl -fsSL https://developers.home-assistant.io/blog/rss.xml -o rss.xml
+          python3 - <<'EOF' > posts.tsv
+          import os
+          from datetime import datetime, timedelta, timezone
+          from email.utils import parsedate_to_datetime
+          import xml.etree.ElementTree as ET
+
+          categories = set(os.environ["BLOG_CATEGORIES"].split())
+          cutoff = datetime.now(timezone.utc) - timedelta(days=int(os.environ["BLOG_MAX_AGE_DAYS"]))
+          for item in ET.parse("rss.xml").getroot().iter("item"):
+              tags = {c.text.strip().lower() for c in item.findall("category") if c.text}
+              published = parsedate_to_datetime(item.findtext("pubDate"))
+              if tags & categories and published >= cutoff:
+                  title = " ".join(item.findtext("title").split())
+                  print(f"{published:%Y-%m-%d}\t{title}\t{item.findtext('link').strip()}")
+          EOF
+          cat posts.tsv
+
+      - name: Create an issue per new announcement
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh label create ha-blog --color 1D76DB \
+            --description "Home Assistant developer blog announcement" --force
+          existing=$(gh issue list --label ha-blog --state all --limit 500 --json title --jq '.[].title')
+
+          while IFS=$'\t' read -r date title link; do
+            [ -n "$title" ] || continue
+            issue_title="Developer blog: $title"
+            if grep -Fxq -- "$issue_title" <<< "$existing"; then
+              continue
+            fi
+            body=$(printf '%s\n' \
+              "Home Assistant published an announcement about apps on $date:" \
+              "" \
+              "$link" \
+              "" \
+              "Check whether it affects the OpenObserve app. Close this issue once it is handled or not relevant.")
+            gh issue create --title "$issue_title" --label ha-blog --body "$body"
+            echo "Created: $issue_title"
+          done < posts.tsv
