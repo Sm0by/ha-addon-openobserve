@@ -21,6 +21,15 @@ jobs:
           shellcheck --shell=bash \
             openobserve/rootfs/etc/s6-overlay/s6-rc.d/openobserve/run \
             openobserve/rootfs/etc/s6-overlay/s6-rc.d/openobserve/finish
+      - name: OpenObserve license matches the pinned version
+        run: |
+          set -euo pipefail
+          version=$(grep -oP '^ARG OPENOBSERVE_VERSION=\K\S+' openobserve/Dockerfile)
+          curl -fsSL "https://raw.githubusercontent.com/openobserve/openobserve/$version/LICENSE" -o upstream-license
+          if ! diff -q upstream-license openobserve/rootfs/usr/share/doc/openobserve/LICENSE; then
+            echo "::error::openobserve/rootfs/usr/share/doc/openobserve/LICENSE differs from the LICENSE of OpenObserve $version"
+            exit 1
+          fi
 
   build:
     name: Build and smoke test (${{ matrix.arch }})
@@ -53,6 +62,15 @@ jobs:
           build-args: |
             BUILD_ARCH=${{ matrix.arch }}
             BUILD_VERSION=${{ steps.version.outputs.version }}
+
+      - name: License notice in the image
+        run: |
+          set -euo pipefail
+          version=$(grep -oP '^ARG OPENOBSERVE_VERSION=\K\S+' openobserve/Dockerfile)
+          docker run --rm --entrypoint cat local/openobserve:test /usr/share/doc/openobserve/SOURCE \
+            | tee source.txt
+          grep -qF "https://github.com/openobserve/openobserve/tree/$version" source.txt
+          docker run --rm --entrypoint test local/openobserve:test -s /usr/share/doc/openobserve/LICENSE
 
       - name: Smoke test OpenObserve binary
         env:

@@ -24,6 +24,9 @@ env:
   DOCKERFILE: openobserve/Dockerfile
   CONFIG: openobserve/config.yaml
   CHANGELOG: openobserve/CHANGELOG.md
+  LICENSE_FILE: openobserve/rootfs/usr/share/doc/openobserve/LICENSE
+  # License the app is published under; a different upstream license needs a review
+  EXPECTED_SPDX: AGPL-3.0
   IMAGE: public.ecr.aws/zinclabs/openobserve
   BRANCH: update/openobserve
 
@@ -109,6 +112,41 @@ jobs:
           echo "app_version=$new" >> "$GITHUB_OUTPUT"
           git diff
 
+      # The image ships the license text of OpenObserve (AGPL-3.0), so it has to
+      # match the new version. A changed license is flagged in the pull request.
+      - name: Update license
+        if: steps.versions.outputs.update == 'true'
+        id: license
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+          APP_VERSION: ${{ steps.bump.outputs.app_version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/openobserve/openobserve/$LATEST/LICENSE" -o "$LICENSE_FILE"
+          spdx=$(gh api "repos/openobserve/openobserve/license?ref=$LATEST" --jq '.license.spdx_id' || echo "unknown")
+          echo "SPDX: $spdx"
+
+          if git diff --quiet -- "$LICENSE_FILE"; then
+            text="unchanged"
+          else
+            text="changed"
+            # Mention it in the new changelog entry, right below its heading
+            sed -i "0,/^- Update OpenObserve/s|^- Update OpenObserve.*|&\n- The license text of OpenObserve changed, see \`/usr/share/doc/openobserve/LICENSE\` in the app|" "$CHANGELOG"
+          fi
+
+          if [ "$spdx" = "$EXPECTED_SPDX" ]; then
+            check="✅ \`$spdx\` as before"
+          else
+            check="⚠️ \`$spdx\` instead of \`$EXPECTED_SPDX\`: check whether the app may still ship OpenObserve, then update README, DOCS, the image label and \`EXPECTED_SPDX\`"
+            echo "::warning::OpenObserve $LATEST is licensed as $spdx, expected $EXPECTED_SPDX"
+          fi
+          {
+            echo "text=$text"
+            echo "check=$check"
+          } >> "$GITHUB_OUTPUT"
+          git diff --stat
+
       - name: Create or update pull request
         if: steps.versions.outputs.update == 'true'
         id: pr
@@ -125,6 +163,7 @@ jobs:
             - OpenObserve: `${{ steps.versions.outputs.current }}` → `${{ steps.versions.outputs.latest }}`
             - App version: `${{ steps.bump.outputs.app_version }}`
             - Release notes: https://github.com/openobserve/openobserve/releases/tag/${{ steps.versions.outputs.latest }}
+            - License: ${{ steps.license.outputs.check }}; license text ${{ steps.license.outputs.text }} (`openobserve/rootfs/usr/share/doc/openobserve/LICENSE`)
 
             Before merging, check the release notes for breaking changes and database migrations,
             and extend the CHANGELOG entry if needed.

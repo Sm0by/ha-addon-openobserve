@@ -36,15 +36,11 @@ const house = `
   <!-- House inspired by the Home Assistant logo, in OpenObserve colours -->
   <!-- Apex and bottom corners are about 42 px from the centre, so the gap to the ring is even -->
   <path d="M64 25L91 52V93H37V52Z" fill="${OO.purple}" stroke="${OO.purple}" stroke-width="6" stroke-linejoin="round"/>
-  <g stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none">
-    <path d="M64 93V47"/>
-    <path d="M64 78L50 65"/>
-    <path d="M64 69L78 57"/>
-  </g>
+  <!-- Pulse line as in observability charts (no antenna of the Home Assistant logo) -->
+  <path d="M47 70H54L58 60L64 82L70 50L75 70H81" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   <g stroke="#FFFFFF" stroke-width="2.5">
-    <circle cx="64" cy="45" r="5" fill="${OO.blue}"/>
-    <circle cx="49" cy="64" r="5" fill="${OO.red}"/>
-    <circle cx="79" cy="56" r="5" fill="${OO.green}"/>
+    <circle cx="46" cy="70" r="4" fill="${OO.red}"/>
+    <circle cx="82" cy="70" r="4" fill="${OO.green}"/>
   </g>`;
 
 const mark = `

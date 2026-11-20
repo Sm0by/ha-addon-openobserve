@@ -44,4 +44,4 @@ Bugs and ideas: [GitHub issues](https://github.com/Sm0by/ha-addon-openobserve/is
 
 ## License
 
-The files in this repository are under the [MIT License](LICENSE). The app image contains the unmodified OpenObserve binary, which is licensed under the [GNU AGPL v3](https://github.com/openobserve/openobserve/blob/main/LICENSE). This project is not affiliated with OpenObserve Inc. or the Home Assistant project.
+The files in this repository are under the [MIT License](LICENSE). The app image contains the unmodified OpenObserve binary, which is licensed under the [GNU AGPL v3](https://github.com/openobserve/openobserve/blob/main/LICENSE); its license text and the link to the corresponding source code are in the image under `/usr/share/doc/openobserve/`. This project is not affiliated with OpenObserve Inc. or the Home Assistant project.

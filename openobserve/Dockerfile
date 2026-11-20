@@ -24,6 +24,19 @@ RUN chmod a+x \
         /etc/s6-overlay/s6-rc.d/openobserve/run \
         /etc/s6-overlay/s6-rc.d/openobserve/finish
 
+# AGPL-3.0: the license text of OpenObserve is in rootfs (kept in sync by the
+# update workflow), the location of the corresponding source is written here
+RUN printf '%s\n' \
+        "OpenObserve ${OPENOBSERVE_VERSION}" \
+        "" \
+        "The binary /usr/local/bin/openobserve is the unmodified official build from" \
+        "public.ecr.aws/zinclabs/openobserve:${OPENOBSERVE_VERSION}." \
+        "It is licensed under the GNU Affero General Public License v3.0, see LICENSE." \
+        "" \
+        "Corresponding source code:" \
+        "https://github.com/openobserve/openobserve/tree/${OPENOBSERVE_VERSION}" \
+        > /usr/share/doc/openobserve/SOURCE
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -fsS http://127.0.0.1:5080/healthz > /dev/null || exit 1
 
@@ -35,4 +48,5 @@ LABEL \
     io.hass.version="${BUILD_VERSION}" \
     org.opencontainers.image.source="https://github.com/Sm0by/ha-addon-openobserve" \
     org.opencontainers.image.version="${BUILD_VERSION}" \
+    org.opencontainers.image.licenses="MIT AND AGPL-3.0-only" \
     org.openobserve.version="${OPENOBSERVE_VERSION}"

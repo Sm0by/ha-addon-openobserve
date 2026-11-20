@@ -1,6 +1,8 @@
 # Artwork
 
-Sources of the app icon and logo. The house is inspired by the Home Assistant logo and uses the OpenObserve colours; the ring is inspired by the OpenObserve logo and uses Home Assistant blues.
+Sources of the app icon and logo: a plain house in the OpenObserve colours with a pulse line, inside a ring of four arcs in Home Assistant blues.
+
+Keep the artwork clearly distinct from the trademarked logos of Home Assistant and OpenObserve: no antenna or nodes of the Home Assistant logo, no copied paths or exact colour sets of either logo.
 
 | File | Use |
 |---|---|
