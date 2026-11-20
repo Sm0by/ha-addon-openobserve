@@ -1,0 +1,136 @@
+name: Publish
+
+# Builds the app images and pushes them to the GitHub Container Registry,
+# so Home Assistant installs pull a ready image instead of building locally.
+# Runs for every app version that has no image yet, then creates a GitHub release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "openobserve/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Check version
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      image: ${{ steps.check.outputs.image }}
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Also finds images while the package is still private
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read version and check for existing images
+        id: check
+        run: |
+          set -euo pipefail
+          version=$(grep -oP '^version:\s*"\K[^"]+' openobserve/config.yaml)
+          image=$(grep -oP '^image:\s*"?\K[^"\s]+' openobserve/config.yaml)
+          echo "Version: $version, image: $image"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+          publish=false
+          for arch in amd64 aarch64; do
+            ref="${image/\{arch\}/$arch}:$version"
+            if docker manifest inspect "$ref" > /dev/null 2>&1; then
+              echo "$ref exists"
+            else
+              echo "$ref is missing"
+              publish=true
+            fi
+          done
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push (${{ matrix.arch }})
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Image name
+        id: name
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          ARCH: ${{ matrix.arch }}
+        run: echo "name=${IMAGE/\{arch\}/$ARCH}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./openobserve
+          push: true
+          provenance: false
+          tags: |
+            ${{ steps.name.outputs.name }}:${{ needs.prepare.outputs.version }}
+            ${{ steps.name.outputs.name }}:latest
+          build-args: |
+            BUILD_ARCH=${{ matrix.arch }}
+            BUILD_VERSION=${{ needs.prepare.outputs.version }}
+
+  release:
+    name: GitHub release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag exists"
+            exit 0
+          fi
+          # Section of this version in the changelog, without its heading
+          awk -v v="$VERSION" '
+            /^## / { if (found) exit; found = ($2 == v); next }
+            found
+          ' openobserve/CHANGELOG.md > notes.md
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md
