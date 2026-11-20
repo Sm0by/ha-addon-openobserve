@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Ship the license text of OpenObserve (AGPL-3.0) and the link to its source code in the app (`/usr/share/doc/openobserve/`)
+- New icon and logo without elements of the Home Assistant logo
+- Document how to allow alerts to devices in your network (`ZO_SSRF_ALLOWED_CIDRS`)
+
 ## 0.2.0
 
 - Install a prebuilt image from the GitHub Container Registry instead of building the app on the device

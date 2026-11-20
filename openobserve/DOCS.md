@@ -33,6 +33,17 @@ Example for `env_vars`:
   value: "24"
 ```
 
+### Alerts to devices in your network
+
+OpenObserve blocks alert destinations, webhooks and other outgoing requests to private network addresses (protection against server-side request forgery). To send alerts to a device in your network, for example a webhook of Home Assistant, allow its address:
+
+```yaml
+- name: ZO_SSRF_ALLOWED_CIDRS
+  value: "192.168.1.10/32"
+```
+
+Several addresses or networks are separated by commas. `ZO_SSRF_ALLOWED_HOSTS` does the same for host names. Restart the app after changing them.
+
 ## Sending data (OTLP)
 
 | Protocol | Endpoint |
@@ -56,6 +67,12 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64>
 ```
 
+The OpenTelemetry specification encodes the space as `%20`, but some exporters do not decode it. If you get `401 Unauthorized`, write a plain space instead.
+
+### Logs and events of Home Assistant
+
+The [Remote Logger](https://remote-logger.rhizomatics.org.uk) integration (HACS) sends the logs and selected events of Home Assistant via OTLP. Use the OTLP/HTTP endpoint and the authorization header from above.
+
 ## Backups
 
 The app uses cold backups: Home Assistant stops OpenObserve during a backup so the database and write-ahead log are consistent. Large amounts of data make backups bigger; lower `retention_days` if needed.
@@ -70,3 +87,9 @@ OpenObserve uses up to half of the available memory for in-memory tables by defa
 |---|---|
 | 5080/tcp | Web interface, HTTP API and OTLP/HTTP |
 | 5081/tcp | OTLP/gRPC |
+
+## License
+
+The app contains the unmodified official OpenObserve binary, licensed under the [GNU Affero General Public License v3.0](https://github.com/openobserve/openobserve/blob/main/LICENSE). The license text and the link to the source code of the included version are in the app under `/usr/share/doc/openobserve/`. The files of the app itself are under the MIT License.
+
+This app is a community project and not affiliated with OpenObserve Inc. or the Home Assistant project.
