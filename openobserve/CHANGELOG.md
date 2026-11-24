@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Update OpenObserve from v1.2.0-rc2 to v1.2.0 ([release notes](https://github.com/openobserve/openobserve/releases/tag/v1.2.0))
+
 ## 0.2.1
 
 - Ship the license text of OpenObserve (AGPL-3.0) and the link to its source code in the app (`/usr/share/doc/openobserve/`)
